@@ -1,0 +1,27 @@
+# Nexus AI Service Map
+# Maps repository file paths and directory prefixes to service domains
+
+services:
+  payments:
+    paths:
+      - "services/payments/"
+      - "src/payments/"
+      - "backend/payments/"
+      - "payment"
+    description: "Payments processing, checkout, and billing service"
+  
+  auth:
+    paths:
+      - "services/auth/"
+      - "src/auth/"
+      - "backend/auth/"
+      - "auth"
+    description: "Authentication, session management, and OAuth service"
+
+  orders:
+    paths:
+      - "services/orders/"
+      - "src/orders/"
+      - "backend/orders/"
+      - "order"
+    description: "Order fulfillment, catalog, and inventory service"
