@@ -44,10 +44,15 @@ export default function CodeMindView() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ReviewResult | null>(null)
   const [actionFeedbacks, setActionFeedbacks] = useState<Record<number, string>>({})
+  const [error, setError] = useState<string | null>(null)
 
   const handleRunReview = async () => {
-    if (!diff.trim()) return
+    if (!diff.trim()) {
+      setError('Paste a unified diff before running a review.')
+      return
+    }
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch('/api/codemind/review', {
         method: 'POST',
@@ -59,10 +64,12 @@ export default function CodeMindView() {
           memory_enabled: memoryEnabled
         })
       })
+      if (!res.ok) throw new Error(`Review request failed (${res.status})`)
       const data = await res.json()
       setResult(data)
     } catch (e) {
       console.error('Review failed:', e)
+      setError('CodeMind could not review this diff. Check the backend connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -87,9 +94,12 @@ export default function CodeMindView() {
             comments: result.comments.filter(c => c.id !== commentId)
           })
         }
+      } else {
+        setError('That review comment could not be updated. Please try again.')
       }
     } catch (e) {
       console.error('Feedback failed:', e)
+      setError('That review comment could not be updated. Please try again.')
     }
   }
 
@@ -107,6 +117,7 @@ export default function CodeMindView() {
           Reviews code diffs using cross-agent rules derived from Sentinel's past production incidents.
         </p>
       </div>
+      {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</div>}
 
       {/* Input Section */}
       <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
@@ -300,4 +311,3 @@ export default function CodeMindView() {
     </div>
   )
 }
-

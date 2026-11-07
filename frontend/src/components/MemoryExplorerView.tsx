@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Database, Search, Filter, RefreshCw } from 'lucide-react'
+import { Database, Search, Filter, RefreshCw, X, AlertCircle } from 'lucide-react'
 
 interface MemoryItem {
   id: string
@@ -19,29 +19,38 @@ export default function MemoryExplorerView() {
   const [search, setSearch] = useState('')
   const [selectedAgent, setSelectedAgent] = useState('all')
   const [selectedService, setSelectedService] = useState('all')
+  const [error, setError] = useState<string | null>(null)
 
-  const fetchMemories = () => {
+  const fetchMemories = async (signal?: AbortSignal) => {
     setLoading(true)
+    setError(null)
     let url = `/api/memories?`
     if (search) url += `q=${encodeURIComponent(search)}&`
     if (selectedAgent !== 'all') url += `agent=${encodeURIComponent(selectedAgent)}&`
     if (selectedService !== 'all') url += `service=${encodeURIComponent(selectedService)}&`
 
-    fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        setMemories(data.memories || [])
-        setLoading(false)
-      })
-      .catch(err => {
-        console.error('Failed to load memories:', err)
-        setLoading(false)
-      })
+    try {
+      const res = await fetch(url, { signal })
+      if (!res.ok) throw new Error(`Memory request failed (${res.status})`)
+      const data = await res.json()
+      setMemories(Array.isArray(data.memories) ? data.memories : [])
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      console.error('Failed to load memories:', err)
+      setError('Memories are unavailable right now. Try refreshing the connection.')
+    } finally {
+      if (!signal?.aborted) setLoading(false)
+    }
   }
 
   useEffect(() => {
-    fetchMemories()
-  }, [selectedAgent, selectedService])
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => fetchMemories(controller.signal), search ? 300 : 0)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [search, selectedAgent, selectedService])
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,6 +83,7 @@ export default function MemoryExplorerView() {
             placeholder="Search memories by semantic topic, incident number, or ID..."
             className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
           />
+          {search && <button type="button" onClick={() => setSearch('')} className="absolute right-3 top-2 text-slate-500 hover:text-slate-200" aria-label="Clear memory search"><X className="h-4 w-4" /></button>}
         </form>
 
         <div className="flex items-center space-x-3">
@@ -104,7 +114,7 @@ export default function MemoryExplorerView() {
           </select>
 
           <button
-            onClick={fetchMemories}
+            onClick={() => fetchMemories()}
             className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
             title="Refresh"
           >
@@ -115,6 +125,7 @@ export default function MemoryExplorerView() {
 
       {/* Memories Table */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden shadow-xl">
+        {error && <div className="flex items-center gap-2 border-b border-rose-500/20 bg-rose-500/10 px-4 py-3 text-xs text-rose-300"><AlertCircle className="h-4 w-4" />{error}</div>}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="text-[11px] uppercase tracking-wider text-slate-500 bg-slate-950/60 border-b border-slate-800">
@@ -127,6 +138,7 @@ export default function MemoryExplorerView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
+              {!loading && memories.length === 0 && <tr><td colSpan={5} className="px-4 py-14 text-center"><p className="text-sm font-semibold text-slate-300">No memories match these filters</p><button type="button" onClick={() => { setSearch(''); setSelectedAgent('all'); setSelectedService('all') }} className="mt-2 text-xs text-indigo-400 hover:text-indigo-300">Reset all filters</button></td></tr>}
               {memories.map((m, idx) => (
                 <tr key={idx} className="hover:bg-slate-800/30 transition">
                   <td className="py-3 px-4 font-mono text-[11px] text-purple-400 whitespace-nowrap">

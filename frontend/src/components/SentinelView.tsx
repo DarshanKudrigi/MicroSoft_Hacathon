@@ -51,10 +51,15 @@ export default function SentinelView() {
   const [result, setResult] = useState<DiagnosisResult | null>(null)
   const [minutesToResolve, setMinutesToResolve] = useState(20)
   const [outcomeStatus, setOutcomeStatus] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handleDiagnose = async () => {
-    if (!logs.trim()) return
+    if (!logs.trim()) {
+      setError('Paste at least one log line before running a diagnosis.')
+      return
+    }
     setLoading(true)
+    setError(null)
     setOutcomeStatus(null)
     try {
       const res = await fetch('/api/sentinel/diagnose', {
@@ -66,10 +71,12 @@ export default function SentinelView() {
           memory_enabled: memoryEnabled
         })
       })
+      if (!res.ok) throw new Error(`Diagnosis request failed (${res.status})`)
       const data = await res.json()
       setResult(data)
     } catch (e) {
       console.error('Diagnosis failed:', e)
+      setError('Sentinel could not analyze these logs. Check the backend connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -78,7 +85,7 @@ export default function SentinelView() {
   const handleOutcome = async (worked: boolean) => {
     if (!result) return
     try {
-      await fetch(`/api/sentinel/incidents/${result.incident_id}/outcome`, {
+      const res = await fetch(`/api/sentinel/incidents/${result.incident_id}/outcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -86,9 +93,11 @@ export default function SentinelView() {
           minutesToResolve: Number(minutesToResolve)
         })
       })
+      if (!res.ok) throw new Error(`Outcome request failed (${res.status})`)
       setOutcomeStatus(worked ? 'RESOLVED_WORKED' : 'RESOLVED_FAILED')
     } catch (e) {
       console.error('Outcome failed:', e)
+      setError('The outcome could not be saved. Please try again.')
     }
   }
 
@@ -106,6 +115,7 @@ export default function SentinelView() {
           Diagnose production outages from raw logs using Hindsight memory recall to separate surface symptoms from underlying root causes.
         </p>
       </div>
+      {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</div>}
 
       {/* Input Section */}
       <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">

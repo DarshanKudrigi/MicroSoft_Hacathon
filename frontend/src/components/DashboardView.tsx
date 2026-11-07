@@ -34,18 +34,22 @@ export default function DashboardView() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [windowSize, setWindowSize] = useState<7 | 30>(30)
 
-  const fetchDashboard = () => {
-    fetch('/api/dashboard')
-      .then(res => res.json())
-      .then(resData => {
-        setData(resData)
-        setLoading(false)
-      })
-      .catch(err => {
-        console.error('Failed to load dashboard:', err)
-        setLoading(false)
-      })
+  const fetchDashboard = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/dashboard')
+      if (!res.ok) throw new Error(`Dashboard request failed (${res.status})`)
+      setData(await res.json() as DashboardData)
+    } catch (err) {
+      console.error('Failed to load dashboard:', err)
+      setError('We could not load the latest metrics. Check the backend and try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -59,11 +63,11 @@ export default function DashboardView() {
         method: 'POST',
         headers: { 'X-API-Key': 'nexus-dev-secret-key' }
       })
-      if (res.ok) {
-        fetchDashboard()
-      }
+      if (!res.ok) throw new Error(`Seed request failed (${res.status})`)
+      await fetchDashboard()
     } catch (e) {
       console.error('Seed error:', e)
+      setError('Demo data could not be refreshed. Check the API key and database connection.')
     } finally {
       setSeeding(false)
     }
@@ -76,6 +80,17 @@ export default function DashboardView() {
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-slate-400">Loading Nexus metrics & learning feed...</p>
         </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto flex min-h-[400px] max-w-xl flex-col items-center justify-center rounded-2xl border border-rose-200 bg-white p-8 text-center shadow-sm dark:border-rose-900/50 dark:bg-slate-900">
+        <ShieldCheck className="h-10 w-10 text-rose-500" />
+        <h1 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">Dashboard unavailable</h1>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{error}</p>
+        <button onClick={fetchDashboard} className="mt-5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500">Try again</button>
       </div>
     )
   }
@@ -181,14 +196,17 @@ export default function DashboardView() {
                 Resolution duration (minutes) drops as Sentinel recalls past fixes and CodeMind prevents repeats
               </p>
             </div>
-            <span className="text-xs px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 font-mono">
-              30-Day Window
-            </span>
+            <select value={windowSize} onChange={event => setWindowSize(Number(event.target.value) as 7 | 30)} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <option value={30}>30-Day Window</option>
+              <option value={7}>7-Day Window</option>
+            </select>
           </div>
 
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data?.resolution_time_series || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              {(data?.resolution_time_series || []).length === 0 ? (
+                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">No resolved incidents yet.</div>
+              ) : <AreaChart data={(data?.resolution_time_series || []).slice(-windowSize)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="mttrGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
@@ -203,7 +221,7 @@ export default function DashboardView() {
                   labelStyle={{ color: '#94a3b8' }}
                 />
                 <Area type="monotone" dataKey="minutes" stroke="#818cf8" strokeWidth={2.5} fillOpacity={1} fill="url(#mttrGradient)" />
-              </AreaChart>
+              </AreaChart>}
             </ResponsiveContainer>
           </div>
         </div>
@@ -219,6 +237,7 @@ export default function DashboardView() {
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-72">
+            {(data?.learning_feed || []).length === 0 && <p className="rounded-xl border border-dashed border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">Learning events will appear here after the first incident or review.</p>}
             {data?.learning_feed.map(item => (
               <div key={item.id} className="p-3 rounded-xl bg-slate-800/40 border border-slate-800 text-xs space-y-1">
                 <div className="flex items-center justify-between">
