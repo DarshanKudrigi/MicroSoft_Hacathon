@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Activity, ShieldCheck, Brain, GitPullRequest, GitGraph,
-  Database, AlertCircle
+  Activity, AlertCircle, Bell, Brain, Command, Database, GitGraph,
+  GitPullRequest, Moon, Search, ShieldCheck, Sun, X
 } from 'lucide-react'
 
 import DashboardView from './components/DashboardView'
@@ -10,6 +11,8 @@ import CodeMindView from './components/CodeMindView'
 import MemoryExplorerView from './components/MemoryExplorerView'
 import KnowledgeGraphView from './components/KnowledgeGraphView'
 
+type Tab = 'dashboard' | 'sentinel' | 'codemind' | 'memory' | 'graph'
+
 interface HealthState {
   status: string
   database: { connected: boolean; dialect: string; error?: string }
@@ -17,133 +20,160 @@ interface HealthState {
   memory: { provider: string; connected: boolean; bank_id: string; status: string }
 }
 
+const tabs: Array<{ id: Tab; label: string; icon: typeof Activity }> = [
+  { id: 'dashboard', label: 'Dashboard', icon: Activity },
+  { id: 'sentinel', label: 'Sentinel (RCA)', icon: ShieldCheck },
+  { id: 'codemind', label: 'CodeMind (Review)', icon: GitPullRequest },
+  { id: 'memory', label: 'Memory Explorer', icon: Database },
+  { id: 'graph', label: 'Knowledge Graph', icon: GitGraph },
+]
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sentinel' | 'codemind' | 'memory' | 'graph'>('dashboard')
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [health, setHealth] = useState<HealthState | null>(null)
-  const [loadingHealth, setLoadingHealth] = useState<boolean>(true)
+  const [loadingHealth, setLoadingHealth] = useState(true)
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('nexus-theme') !== 'light')
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [activityOpen, setActivityOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    document.body.classList.toggle('dark', darkMode)
+    localStorage.setItem('nexus-theme', darkMode ? 'dark' : 'light')
+  }, [darkMode])
 
   useEffect(() => {
     fetch('/api/health')
       .then(res => res.json())
-      .then(data => {
-        setHealth(data)
-        setLoadingHealth(false)
-      })
-      .catch(err => {
-        console.error('Failed to fetch health check:', err)
-        setLoadingHealth(false)
-      })
+      .then(data => setHealth(data))
+      .catch(() => setToast('Backend health check is unavailable'))
+      .finally(() => setLoadingHealth(false))
   }, [])
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen(open => !open)
+      }
+      if (event.key === 'Escape') {
+        setPaletteOpen(false)
+        setActivityOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const filteredTabs = useMemo(
+    () => tabs.filter(tab => tab.label.toLowerCase().includes(query.toLowerCase())),
+    [query],
+  )
+
+  const selectTab = (tab: Tab) => {
+    setActiveTab(tab)
+    setPaletteOpen(false)
+    setQuery('')
+  }
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
-      {/* Top Header */}
-      <header className="border-b border-slate-800 bg-slate-900/70 backdrop-blur sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Brain className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-lg tracking-tight text-white">NEXUS AI</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">Hindsight v2</span>
-            </div>
-            <p className="text-xs text-slate-400">Cross-Agent Incident Learning System</p>
-          </div>
-        </div>
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-indigo-500/[0.06] blur-3xl" />
+        <div className="absolute right-0 top-24 h-96 w-96 rounded-full bg-purple-500/[0.05] blur-3xl" />
+      </div>
 
-        {/* Tab Buttons */}
-        <nav className="flex items-center space-x-1 bg-slate-800/60 p-1 rounded-xl border border-slate-700/60">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/40'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Dashboard</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('sentinel')}
-            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'sentinel' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/40'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Sentinel (RCA)</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('codemind')}
-            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'codemind' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/40'
-            }`}
-          >
-            <GitPullRequest className="w-3.5 h-3.5" />
-            <span>CodeMind (Review)</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('memory')}
-            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'memory' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/40'
-            }`}
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>Memory Explorer</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('graph')}
-            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeTab === 'graph' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/40'
-            }`}
-          >
-            <GitGraph className="w-3.5 h-3.5" />
-            <span>Knowledge Graph</span>
-          </button>
-        </nav>
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 px-4 py-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/90 sm:px-6">
+        <div className="flex min-w-0 flex-nowrap items-center gap-4">
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 shadow-lg shadow-indigo-500/20">
+              <Brain className="h-5 w-5 text-white" />
+            </div>
+            <div className="hidden xl:block">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">NEXUS AI</span>
+                <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-300">Hindsight v2</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cross-Agent Incident Learning System</p>
+            </div>
+          </div>
 
-        {/* Health Status Badge */}
-        <div className="flex items-center space-x-2 text-xs">
-          {loadingHealth ? (
-            <span className="flex items-center text-slate-400">
-              <span className="w-2 h-2 rounded-full bg-slate-500 animate-ping mr-2" />
-              Checking...
-            </span>
-          ) : health?.status === 'ok' ? (
-            <div className="flex items-center space-x-2 bg-emerald-950/40 border border-emerald-800/50 px-3 py-1 rounded-full text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>All Systems Operational</span>
+          <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-xl border border-slate-200/70 bg-slate-100/80 p-1 dark:border-slate-700/60 dark:bg-slate-800/60">
+            {tabs.map(tab => {
+              const IconComponent = tab.icon
+              return (
+                <button key={tab.id} onClick={() => selectTab(tab.id)} className="relative flex min-w-0 shrink items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 sm:px-3">
+                  {activeTab === tab.id && <motion.span layoutId="active-nav-pill" className="absolute inset-0 rounded-lg bg-white shadow-sm dark:bg-indigo-600" transition={{ type: 'spring', stiffness: 450, damping: 34 }} />}
+                  <IconComponent className="relative z-10 h-3.5 w-3.5" />
+                  <span className="relative z-10 hidden lg:inline">{tab.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button onClick={() => setPaletteOpen(true)} className="hidden items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 sm:flex" title="Command palette">
+              <Search className="h-3.5 w-3.5" /><span className="hidden xl:inline">Search</span><kbd className="rounded bg-slate-100 px-1 dark:bg-slate-800">⌘K</kbd>
+            </button>
+            <button onClick={() => setDarkMode(mode => !mode)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" title="Toggle theme">
+              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            <div className="relative">
+              <button onClick={() => setActivityOpen(open => !open)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" title="System activity"><Bell className="h-4 w-4" /></button>
+              <AnimatePresence>
+                {activityOpen && <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="absolute right-0 top-11 w-64 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                  <p className="font-semibold text-slate-900 dark:text-white">System activity</p>
+                  <p className="mt-2 text-slate-500 dark:text-slate-400">Health checks and agent events will appear here.</p>
+                </motion.div>}
+              </AnimatePresence>
             </div>
-          ) : (
-            <div className="flex items-center space-x-2 bg-amber-950/40 border border-amber-800/50 px-3 py-1 rounded-full text-amber-300">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              <span>Degraded / Standby</span>
+            <div className="hidden items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-600 dark:text-emerald-400 md:flex">
+              <span className={`h-2 w-2 rounded-full ${loadingHealth ? 'animate-ping bg-slate-400' : health?.status === 'ok' ? 'animate-pulse bg-emerald-500' : 'bg-amber-400'}`} />
+              <span>{loadingHealth ? 'Checking...' : health?.status === 'ok' ? 'All Systems Operational' : 'Degraded / Standby'}</span>
             </div>
-          )}
+          </div>
         </div>
       </header>
 
-      {/* Main Screen Body */}
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
-        {/* Standby Banner if Memory not connected */}
+      <main className="relative z-10 mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6">
         {health && !health.memory.connected && (
-          <div className="mb-6 p-4 rounded-xl border border-amber-700/40 bg-amber-950/20 text-amber-200 flex items-start space-x-3">
-            <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-sm">Hindsight Memory Cloud Standby Mode</p>
-              <p className="text-xs text-amber-300/80 mt-1">
-                Hindsight Cloud key is unconfigured. Nexus is operating gracefully in baseline offline mode with full test coverage and fallback knowledge.
-              </p>
-            </div>
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-200">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+            <div><p className="text-sm font-semibold">Hindsight Memory Cloud Standby Mode</p><p className="mt-1 text-xs opacity-80">Nexus is operating in offline fallback mode.</p></div>
           </div>
         )}
-
-        {/* Active Screen Tab View */}
-        {activeTab === 'dashboard' && <DashboardView />}
-        {activeTab === 'sentinel' && <SentinelView />}
-        {activeTab === 'codemind' && <CodeMindView />}
-        {activeTab === 'memory' && <MemoryExplorerView />}
-        {activeTab === 'graph' && <KnowledgeGraphView />}
+        <AnimatePresence mode="wait">
+          <motion.div key={activeTab} variants={containerVariants} initial="hidden" animate="show" exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+            {activeTab === 'dashboard' && <DashboardView />}
+            {activeTab === 'sentinel' && <SentinelView />}
+            {activeTab === 'codemind' && <CodeMindView />}
+            {activeTab === 'memory' && <MemoryExplorerView />}
+            {activeTab === 'graph' && <KnowledgeGraphView />}
+          </motion.div>
+        </AnimatePresence>
       </main>
+
+      <AnimatePresence>
+        {toast && <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }} className="fixed bottom-5 right-5 z-[70] flex items-center gap-3 rounded-xl border border-amber-500/30 bg-white px-4 py-3 text-xs text-slate-700 shadow-xl dark:bg-slate-900 dark:text-slate-200">
+          <AlertCircle className="h-4 w-4 text-amber-500" />{toast}<button onClick={() => setToast(null)}><X className="h-3.5 w-3.5" /></button>
+        </motion.div>}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {paletteOpen && <motion.div className="fixed inset-0 z-[60] flex items-start justify-center bg-slate-950/40 p-4 pt-[15vh] backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={() => setPaletteOpen(false)}>
+          <motion.div initial={{ scale: 0.96, y: -8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: -8 }} onMouseDown={(event: MouseEvent<HTMLDivElement>) => event.stopPropagation()} className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-2 border-b border-slate-200 px-4 dark:border-slate-700"><Command className="h-4 w-4 text-indigo-500" /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => event.key === 'Enter' && filteredTabs[0] && selectTab(filteredTabs[0].id)} placeholder="Search views and preferences..." className="w-full bg-transparent py-4 text-sm outline-none placeholder:text-slate-400" /><button onClick={() => setPaletteOpen(false)}><X className="h-4 w-4 text-slate-400" /></button></div>
+            <div className="p-2">{filteredTabs.map(tab => <button key={tab.id} onClick={() => selectTab(tab.id)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"><tab.icon className="h-4 w-4 text-indigo-500" />{tab.label}<span className="ml-auto text-xs text-slate-400">Enter</span></button>)}</div>
+          </motion.div>
+        </motion.div>}
+      </AnimatePresence>
     </div>
   )
 }

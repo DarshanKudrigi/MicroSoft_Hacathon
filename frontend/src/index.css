@@ -6,13 +6,19 @@
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #f8fafc;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+body.dark {
+  color-scheme: dark;
   background-color: #020617;
 }
 
@@ -34,4 +40,22 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* Existing feature views use dark utility classes; keep their surfaces readable
+   when the new application shell is switched to light mode. */
+body:not(.dark) .bg-slate-950 { background-color: #f8fafc; }
+body:not(.dark) .bg-slate-900\/60,
+body:not(.dark) .bg-slate-900\/80,
+body:not(.dark) .bg-slate-900\/90 { background-color: rgba(255, 255, 255, 0.9); }
+body:not(.dark) .bg-slate-800,
+body:not(.dark) .bg-slate-800\/40,
+body:not(.dark) .bg-slate-800\/60 { background-color: #f1f5f9; }
+body:not(.dark) .border-slate-800,
+body:not(.dark) .border-slate-800\/60 { border-color: #e2e8f0; }
+body:not(.dark) .text-white { color: #0f172a; }
+body:not(.dark) .text-slate-100 { color: #1e293b; }
+body:not(.dark) .text-slate-200 { color: #334155; }
+body:not(.dark) .text-slate-300 { color: #475569; }
+body:not(.dark) .text-slate-400,
+body:not(.dark) .text-slate-500 { color: #64748b; }
 
