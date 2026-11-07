@@ -11,6 +11,8 @@ os.environ["API_KEY"] = "test-secret-key"
 os.environ["GITHUB_WEBHOOK_SECRET"] = "test-github-secret"
 os.environ["GITLAB_WEBHOOK_TOKEN"] = "test-gitlab-secret"
 os.environ["INTEGRATIONS_DRY_RUN"] = "true"
+os.environ["HINDSIGHT_API_KEY"] = ""
+os.environ["GROQ_API_KEY"] = ""
 
 from app.main import app, get_db
 from app.models import Base
