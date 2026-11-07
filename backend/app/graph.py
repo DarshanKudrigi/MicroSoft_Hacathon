@@ -25,17 +25,30 @@ async def get_knowledge_graph(
     services, incidents, root cause categories, rules, PRs, files, and comments.
     """
     node_query = db.query(GraphNode)
+    is_postgres = bool(db.bind and db.bind.dialect.name == "postgresql")
     if service:
         # Match nodes related to service
-        node_query = node_query.filter(
-            (GraphNode.meta["service"].astext == service) |
-            (GraphNode.id == f"node:service:{service}")
-        )
+        if is_postgres:
+            node_query = node_query.filter(
+                (GraphNode.meta["service"].astext == service) |
+                (GraphNode.id == f"node:service:{service}")
+            )
+        else:
+            node_query = node_query.filter(
+                (GraphNode.id == f"node:service:{service}") |
+                (GraphNode.id.contains(service))
+            )
     if cause:
-        node_query = node_query.filter(
-            (GraphNode.meta["category"].astext == cause) |
-            (GraphNode.id == f"node:root_cause:{cause}")
-        )
+        if is_postgres:
+            node_query = node_query.filter(
+                (GraphNode.meta["category"].astext == cause) |
+                (GraphNode.id == f"node:root_cause:{cause}")
+            )
+        else:
+            node_query = node_query.filter(
+                (GraphNode.id == f"node:root_cause:{cause}") |
+                (GraphNode.id.contains(cause))
+            )
 
     nodes = node_query.limit(limit).all()
     node_ids = {n.id for n in nodes}

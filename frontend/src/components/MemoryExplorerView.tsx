@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion, Variants } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import {
   Database, Search, Filter, RefreshCw, X,
-  ShieldAlert, GitPullRequest, BrainCircuit
+  ShieldAlert, GitPullRequest, BrainCircuit,
+  Hash, Tag
 } from 'lucide-react';
 
 const itemVariants: Variants = {
@@ -39,6 +40,7 @@ export default function MemoryExplorerView({ addToast, externalMemories }: Memor
   const [selectedAgent, setSelectedAgent] = useState('All Agents');
   const [selectedService, setSelectedService] = useState('All Services');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedMem, setSelectedMem] = useState<MemoryItem | null>(null);
 
   // Sync with backend API
   const fetchBackendMemories = async () => {
@@ -73,6 +75,13 @@ export default function MemoryExplorerView({ addToast, externalMemories }: Memor
   useEffect(() => {
     fetchBackendMemories();
   }, [selectedAgent, selectedService]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchBackendMemories();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const filteredMemories = useMemo(() => {
     return memories.filter((mem) => {
@@ -203,9 +212,13 @@ export default function MemoryExplorerView({ addToast, externalMemories }: Memor
                   const iconColor = mem.agent === 'Sentinel' ? 'text-rose-500' : mem.agent === 'CodeMind' ? 'text-indigo-500' : 'text-purple-500';
 
                   return (
-                    <tr key={mem.id} className="hover:bg-indigo-50/30 dark:hover:bg-slate-800/40 transition-colors">
+                    <tr
+                      key={mem.id}
+                      onClick={() => setSelectedMem(mem)}
+                      className="hover:bg-indigo-50/50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-mono text-sm font-bold text-indigo-600 dark:text-indigo-400">{mem.id}</div>
+                        <div className="font-mono text-sm font-bold text-indigo-600 dark:text-indigo-400 group-hover:underline">{mem.id}</div>
                         <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">{mem.scope}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -216,7 +229,7 @@ export default function MemoryExplorerView({ addToast, externalMemories }: Memor
                         <div className="text-[11px] font-medium text-slate-400 mt-1">{mem.type}</div>
                       </td>
                       <td className="px-6 py-4 max-w-xl">
-                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed">{mem.text}</p>
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed line-clamp-2">{mem.text}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-xs font-bold">
@@ -234,6 +247,72 @@ export default function MemoryExplorerView({ addToast, externalMemories }: Memor
           </table>
         </div>
       </motion.div>
+
+      {/* Memory Detail Inspection Modal */}
+      <AnimatePresence>
+        {selectedMem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 relative"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Hash className="w-4 h-4 text-indigo-500" />
+                  <span className="font-mono text-base font-black text-slate-900 dark:text-white">
+                    {selectedMem.id}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedMem(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 dark:text-slate-500 font-bold block mb-1">Service Scope</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedMem.scope}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 dark:text-slate-500 font-bold block mb-1">Recall Frequency</span>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{selectedMem.recalled} times recalled</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 dark:text-slate-500 font-bold block mb-1">Authoring Agent</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedMem.agent}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-400 dark:text-slate-500 font-bold block mb-1">Classification</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">{selectedMem.type}</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 text-sm">
+                <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5" /> Full Memory Text & Guidance
+                </div>
+                <p className="text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                  {selectedMem.text}
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => setSelectedMem(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold text-xs hover:opacity-90 transition-opacity"
+                >
+                  Close Inspector
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

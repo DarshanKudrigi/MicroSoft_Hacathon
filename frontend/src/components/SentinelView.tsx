@@ -70,11 +70,13 @@ export default function SentinelView({ addToast }: SentinelViewProps) {
   const [logs, setLogs] = useState(SAMPLE_HIKARI);
   const [diagnosis, setDiagnosis] = useState<DiagnosisData | null>(null);
   const [outcomeSaved, setOutcomeSaved] = useState<string | null>(null);
+  const [outcomeRuleId, setOutcomeRuleId] = useState<string | null>(null);
 
   const loadPreset = (type: 'hikari' | 'oom') => {
     setActivePreset(type);
     setDiagnosis(null);
     setOutcomeSaved(null);
+    setOutcomeRuleId(null);
     if (type === 'hikari') {
       setService('payments');
       setLogs(SAMPLE_HIKARI);
@@ -161,19 +163,30 @@ export default function SentinelView({ addToast }: SentinelViewProps) {
   };
 
   const handleOutcomeFeedback = async (worked: boolean) => {
+    let derivedRule: string | null = null;
     if (diagnosis?.incidentId) {
       try {
-        await fetch(`/api/sentinel/incidents/${diagnosis.incidentId}/outcome`, {
+        const res = await fetch(`/api/sentinel/incidents/${diagnosis.incidentId}/outcome`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ worked, minutesToResolve: 19 })
         });
+        if (res.ok) {
+          const outcomeData = await res.json();
+          derivedRule = outcomeData.rule_id;
+        }
       } catch {
         // Handled silently
       }
     }
     setOutcomeSaved(worked ? 'RESOLVED_WORKED' : 'RESOLVED_FAILED');
-    addToast(worked ? 'Resolution verified: MTTR metrics updated!' : 'Negative feedback recorded for reinforcement.', worked ? 'success' : 'info');
+    setOutcomeRuleId(derivedRule);
+    addToast(
+      worked
+        ? `Incident resolved! ${derivedRule ? `Derived rule ${derivedRule} stored in Hindsight.` : 'Cross-agent rule generated for CodeMind.'}`
+        : 'Incident marked as failed fix attempt. Saved to memory.',
+      worked ? 'success' : 'info'
+    );
   };
 
   return (
@@ -326,12 +339,19 @@ export default function SentinelView({ addToast }: SentinelViewProps) {
             )}
 
             {/* Incident Resolution Outcome Feedback */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
               <span className="font-bold text-slate-500 dark:text-slate-400">Did this diagnosis resolve the active incident?</span>
               {outcomeSaved ? (
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" /> Outcome recorded: {outcomeSaved === 'RESOLVED_WORKED' ? 'Resolved successfully' : 'Noted for review'}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" /> Outcome recorded: {outcomeSaved === 'RESOLVED_WORKED' ? 'Resolved successfully' : 'Noted for review'}
+                  </span>
+                  {outcomeRuleId && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                      Rule: {outcomeRuleId} Synced
+                    </span>
+                  )}
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <button

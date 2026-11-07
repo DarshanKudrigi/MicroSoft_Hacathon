@@ -62,6 +62,7 @@ interface CommandPaletteProps {
   addToast: (message: string, type?: 'success' | 'warning' | 'info') => void;
   toggleTheme: () => void;
   theme: string;
+  memories: typeof sampleMemories;
 }
 
 const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -70,7 +71,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   setCurrentView,
   addToast,
   toggleTheme,
-  theme
+  theme,
+  memories
 }) => {
   const [query, setQuery] = useState('');
 
@@ -97,14 +99,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const filteredMemories = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return sampleMemories.slice(0, 2);
-    return sampleMemories.filter(m =>
+    if (!q) return memories.slice(0, 2);
+    return memories.filter(m =>
       m.id.toLowerCase().includes(q) ||
       m.text.toLowerCase().includes(q) ||
       m.scope.toLowerCase().includes(q) ||
       m.agent.toLowerCase().includes(q)
     ).slice(0, 4);
-  }, [query]);
+  }, [query, memories]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -380,6 +382,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [theme, setTheme] = useState(() => localStorage.getItem('nexus-theme') || 'light');
   const [isBackendHealthy, setIsBackendHealthy] = useState(true);
+  const [memories, setMemories] = useState(sampleMemories);
 
   // Synchronize root document classes for theme
   useEffect(() => {
@@ -388,7 +391,7 @@ export default function App() {
     localStorage.setItem('nexus-theme', theme);
   }, [theme]);
 
-  // Check backend health
+  // Check backend health and prefetch memories
   useEffect(() => {
     fetch('/api/health')
       .then(res => {
@@ -401,6 +404,23 @@ export default function App() {
       .catch(() => {
         setIsBackendHealthy(false);
       });
+
+    fetch('/api/memories')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (Array.isArray(data?.memories) && data.memories.length > 0) {
+          setMemories(data.memories.map((m: any) => ({
+            id: m.id,
+            scope: m.service || 'payments',
+            agent: m.agent === 'sentinel' ? 'Sentinel' : m.agent === 'codemind' ? 'CodeMind' : 'Hindsight',
+            type: m.derived ? 'PR Guardrail Rule' : 'Root Cause Pattern',
+            text: m.text,
+            recalled: m.recalled_count || 12,
+            created: 'Recently'
+          })));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
@@ -452,6 +472,7 @@ export default function App() {
           addToast={addToast}
           toggleTheme={toggleTheme}
           theme={theme}
+          memories={memories}
         />
 
         {/* Floating Toasts */}

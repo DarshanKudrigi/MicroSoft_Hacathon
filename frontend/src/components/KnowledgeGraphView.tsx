@@ -53,6 +53,30 @@ export default function KnowledgeGraphView() {
   const [zoom, setZoom] = useState(1);
   const [isLocked, setIsLocked] = useState(false);
   const [selectedNode, setSelectedNode] = useState<GraphNodeItem | null>(defaultGraphNodes[1]);
+  const [nodeDetail, setNodeDetail] = useState<{
+    memory_text?: string | null;
+    related?: Record<string, any>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!selectedNode?.id) {
+      setNodeDetail(null);
+      return;
+    }
+    fetch(`/api/graph/nodes/${encodeURIComponent(selectedNode.id)}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setNodeDetail({
+            memory_text: data.memory_text,
+            related: data.related
+          });
+        }
+      })
+      .catch(() => {
+        setNodeDetail(null);
+      });
+  }, [selectedNode?.id]);
 
   useEffect(() => {
     let url = '/api/graph';
@@ -269,7 +293,7 @@ export default function KnowledgeGraphView() {
 
         {/* Bottom-Right Selected Node Inspector */}
         {selectedNode && (
-          <div className="absolute bottom-5 right-5 w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xl z-20">
+          <div className="absolute bottom-5 right-5 w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xl z-20 max-h-60 overflow-y-auto">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                 {selectedNode.category}
@@ -278,6 +302,18 @@ export default function KnowledgeGraphView() {
             </div>
             <div className="text-sm font-black text-slate-900 dark:text-white">{selectedNode.label}</div>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">{selectedNode.desc}</p>
+            {nodeDetail?.memory_text && (
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">Memory Text: </span>
+                {nodeDetail.memory_text}
+              </div>
+            )}
+            {nodeDetail?.related?.incident && (
+              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Incident: </span>
+                {nodeDetail.related.incident.root_cause} ({nodeDetail.related.incident.minutes_to_resolve}m MTTR)
+              </div>
+            )}
           </div>
         )}
       </motion.div>
